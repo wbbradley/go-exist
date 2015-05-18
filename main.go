@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	keyFilter = filter.NewMapFilter([]string{"a", "b"})
+	keyFilter = filter.NewMapFilter()
 )
 
 func queryServer(w http.ResponseWriter, req *http.Request) {
@@ -34,7 +34,11 @@ func queryServerGet(w http.ResponseWriter, req *http.Request) {
 }
 
 func main() {
-	http.HandleFunc("/", queryServer)
+	// Set up some fake data
+	filter.ReadKeysIntoFilter(keyFilter, []string{"a", "b"})
+
+	// Set up the web handler
+	http.HandleFunc("/exists", queryServer)
 	err := http.ListenAndServe(":8001", nil)
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)
