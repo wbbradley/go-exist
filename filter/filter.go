@@ -67,8 +67,6 @@ func (bf *bloomFilter) ReplaceKeys(keys []string) {
 		bloomf.AddString(key)
 	}
 
-	data, _ := bloomf.MarshalJSON()
-
 	// Swap the new Bloom filter with the old one
 	bf.rwmu.Lock()
 	defer bf.rwmu.Unlock()
