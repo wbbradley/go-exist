@@ -3,84 +3,55 @@
 package filter
 
 import (
-	"sync"
-
-	"github.com/willf/bloom"
+	"bufio"
+	"io"
+	"log"
+	"os"
 )
 
 type ExistenceFilter interface {
 	KeyExists(key string) bool
 }
 
-type ReplaceableExistenceFilter interface {
+type MutableExistenceFilter interface {
 	ExistenceFilter
-	ReplaceKeys(keys []string)
+	ImportKeys(keyCount uint, keys <-chan string)
 }
 
-type mapFilter struct {
-	rwmu sync.RWMutex
-	keys map[string]bool
+// Read keys from a stream delimited by line breaks
+func ReadStreamIntoFilter(f MutableExistenceFilter, keyCount uint, r io.Reader) {
+	keys := make(chan string, 100)
+	go func() {
+		scanner := bufio.NewScanner(r)
+		for scanner.Scan() {
+			if key := scanner.Text(); len(key) > 0 {
+				keys <- key
+			}
+		}
+		close(keys)
+		if err := scanner.Err(); err != nil {
+			log.Println("ReadStreamIntoFilter - scanner error", err)
+			if wd, err := os.Getwd(); err == nil {
+				log.Println("Current working directory is", wd)
+			}
+			return
+		}
+	}()
+
+	f.ImportKeys(keyCount, keys)
 }
 
-func (f *mapFilter) ReplaceKeys(keys []string) {
-	filterKeys := make(map[string]bool)
-	for _, key := range keys {
-		filterKeys[key] = true
-	}
+// Read keys from a slice
+func ReadKeysIntoFilter(f MutableExistenceFilter, keysToRead []string) {
+	keys := make(chan string, 100)
+	go func() {
+		for _, key := range keysToRead {
+			if len(key) > 0 {
+				keys <- key
+			}
+		}
+		close(keys)
+	}()
 
-	f.rwmu.Lock()
-	defer f.rwmu.Unlock()
-
-	f.keys = filterKeys
-}
-
-func (f *mapFilter) KeyExists(key string) bool {
-	f.rwmu.RLock()
-	defer f.rwmu.RUnlock()
-
-	return f.keys[key]
-}
-
-func NewMapFilter(keys []string) ReplaceableExistenceFilter {
-	f := new(mapFilter)
-	f.ReplaceKeys(keys)
-	return f
-}
-
-type bloomFilter struct {
-	rwmu   sync.RWMutex
-	bloomf *bloom.BloomFilter
-}
-
-func NewBloomFilter(keys []string) ReplaceableExistenceFilter {
-	f := new(bloomFilter)
-	if len(keys) > 0 {
-		f.ReplaceKeys(keys)
-	}
-	return f
-}
-
-func (bf *bloomFilter) ReplaceKeys(keys []string) {
-	// Load the new keys into a Bloom filter
-	bloomf := bloom.NewWithEstimates(uint(len(keys)), 0.001)
-	for _, key := range keys {
-		bloomf.AddString(key)
-	}
-
-	// Swap the new Bloom filter with the old one
-	bf.rwmu.Lock()
-	defer bf.rwmu.Unlock()
-
-	bf.bloomf = bloomf
-}
-
-func (bf *bloomFilter) KeyExists(key string) bool {
-	bf.rwmu.RLock()
-	defer bf.rwmu.RUnlock()
-
-	if bf.bloomf != nil {
-		return bf.bloomf.TestString(key)
-	} else {
-		return false
-	}
+	f.ImportKeys(uint(len(keysToRead)), keys)
 }
