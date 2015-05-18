@@ -37,7 +37,7 @@ func (f *mapFilter) KeyExists(key string) bool {
 	return f.keys[key]
 }
 
-func NewMapFilter(keys []string) ExistenceFilter {
+func NewMapFilter(keys []string) ReplaceableExistenceFilter {
 	f := new(mapFilter)
 	f.ReplaceKeys(keys)
 	return f
