@@ -14,7 +14,7 @@ type ReplaceableExistenceFilter interface {
 }
 
 type mapFilter struct {
-	mu   sync.Mutex
+	rwmu sync.RWMutex
 	keys map[string]bool
 }
 
@@ -24,15 +24,15 @@ func (f *mapFilter) ReplaceKeys(keys []string) {
 		filterKeys[key] = true
 	}
 
-	f.mu.Lock()
-	defer f.mu.Unlock()
+	f.rwmu.Lock()
+	defer f.rwmu.Unlock()
 
 	f.keys = filterKeys
 }
 
 func (f *mapFilter) KeyExists(key string) bool {
-	f.mu.Lock()
-	defer f.mu.Unlock()
+	f.rwmu.RLock()
+	defer f.rwmu.RUnlock()
 
 	return f.keys[key]
 }
