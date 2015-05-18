@@ -2,7 +2,11 @@
 
 package filter
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/willf/bloom"
+)
 
 type ExistenceFilter interface {
 	KeyExists(key string) bool
@@ -41,4 +45,44 @@ func NewMapFilter(keys []string) ReplaceableExistenceFilter {
 	f := new(mapFilter)
 	f.ReplaceKeys(keys)
 	return f
+}
+
+type bloomFilter struct {
+	rwmu   sync.RWMutex
+	bloomf *bloom.BloomFilter
+}
+
+func NewBloomFilter(keys []string) ReplaceableExistenceFilter {
+	f := new(bloomFilter)
+	if len(keys) > 0 {
+		f.ReplaceKeys(keys)
+	}
+	return f
+}
+
+func (bf *bloomFilter) ReplaceKeys(keys []string) {
+	// Load the new keys into a Bloom filter
+	bloomf := bloom.NewWithEstimates(uint(len(keys)), 0.001)
+	for _, key := range keys {
+		bloomf.AddString(key)
+	}
+
+	data, _ := bloomf.MarshalJSON()
+
+	// Swap the new Bloom filter with the old one
+	bf.rwmu.Lock()
+	defer bf.rwmu.Unlock()
+
+	bf.bloomf = bloomf
+}
+
+func (bf *bloomFilter) KeyExists(key string) bool {
+	bf.rwmu.RLock()
+	defer bf.rwmu.RUnlock()
+
+	if bf.bloomf != nil {
+		return bf.bloomf.TestString(key)
+	} else {
+		return false
+	}
 }
