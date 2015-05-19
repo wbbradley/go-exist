@@ -1,5 +1,7 @@
-// A thread-safe mechanism for swapping out existence keys.
-
+// The goal of this library is to enable you to create a thread-safe mechanism
+// for answering questions of string membership in sets.  Altering what
+// "exists" can be done by appending at run-time, or by transacting a swap of a
+// wholly new set.
 package filter
 
 import (
@@ -18,7 +20,8 @@ type MutableExistenceFilter interface {
 	ImportKeys(keyCount uint, keys <-chan string)
 }
 
-// Read keys from a stream delimited by line breaks
+// Read keys from a stream delimited by line breaks. These keys are passed into
+// a channel which is then consumed by ImportKeys.
 func ReadStreamIntoFilter(f MutableExistenceFilter, keyCount uint, r io.Reader) {
 	keys := make(chan string, 100)
 	go func() {
@@ -41,7 +44,9 @@ func ReadStreamIntoFilter(f MutableExistenceFilter, keyCount uint, r io.Reader) 
 	f.ImportKeys(keyCount, keys)
 }
 
-// Read keys from a slice
+// Read keys from a slice into a MutableExistenceFilter. This function converts
+// a slice of strings into a channel of strings.  It then simply passes that
+// channel on to ImportKeys.
 func ReadKeysIntoFilter(f MutableExistenceFilter, keysToRead []string) {
 	keys := make(chan string, 100)
 	go func() {

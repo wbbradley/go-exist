@@ -8,12 +8,17 @@ import (
 )
 
 type bloomFilter struct {
-	rwmu   sync.RWMutex
-	bloomf *bloom.BloomFilter
+	rwmu        sync.RWMutex
+	bloomf      *bloom.BloomFilter
+	filterCheck FilterCheck
 }
 
-func NewBloomFilter() MutableExistenceFilter {
-	return new(bloomFilter)
+type FilterCheck func(string) bool
+
+func NewBloomFilter(filterCheck FilterCheck) MutableExistenceFilter {
+	filter := new(bloomFilter)
+	filter.filterCheck = filterCheck
+	return filter
 }
 
 // keyCount should be as close as possible to the real number of keys
@@ -33,12 +38,20 @@ func (bf *bloomFilter) ImportKeys(keyCount uint, keys <-chan string) {
 	bf.bloomf = bloomf
 }
 
-func (bf *bloomFilter) KeyExists(key string) bool {
+func (bf *bloomFilter) keyIsInBloomFilter(key string) bool {
 	bf.rwmu.RLock()
 	defer bf.rwmu.RUnlock()
 
-	if bf.bloomf != nil {
-		return bf.bloomf.TestString(key)
+	return bf.bloomf != nil && bf.bloomf.TestString(key)
+}
+
+func (bf *bloomFilter) KeyExists(key string) bool {
+	if bf.keyIsInBloomFilter(key) {
+		if bf.filterCheck != nil {
+			return bf.filterCheck(key)
+		} else {
+			return true
+		}
 	} else {
 		return false
 	}

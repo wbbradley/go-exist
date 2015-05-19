@@ -1,15 +1,23 @@
+// Runs a string existence filter server
+//
+// The server can be queried on the host and port specified.
+//
 package main
 
 import (
+	"flag"
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/wbbradley/go-exist/filter"
 )
 
 var (
 	keyFilter = filter.NewMapFilter()
+	host      = flag.String("host", "", "Specify the server host to listen on")
+	port      = flag.Int("port", 8001, "Specify the server port to listen on")
 )
 
 func queryServer(w http.ResponseWriter, req *http.Request) {
@@ -34,12 +42,14 @@ func queryServerGet(w http.ResponseWriter, req *http.Request) {
 }
 
 func main() {
+	flag.Parse()
+
 	// Set up some fake data
 	filter.ReadKeysIntoFilter(keyFilter, []string{"a", "b"})
 
 	// Set up the web handler
 	http.HandleFunc("/exists", queryServer)
-	err := http.ListenAndServe(":8001", nil)
+	err := http.ListenAndServe(*host+":"+strconv.Itoa(*port), nil)
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)
 	}
